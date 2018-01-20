@@ -16,7 +16,6 @@ import cv2
 from model.config import cfg
 from utils.blob import prep_im_for_blob, im_list_to_blob
 
-
 def get_minibatch(roidb, num_classes):
   """Given a roidb, construct a minibatch sampled from it."""
   num_images = len(roidb)
@@ -47,7 +46,7 @@ def get_minibatch(roidb, num_classes):
   gt_boxes[:, 4] = roidb[0]['gt_classes'][gt_inds]
   blobs['gt_boxes'] = gt_boxes
   blobs['im_info'] = np.array(
-    [[im_blob.shape[1], im_blob.shape[2], im_scales[0]]],
+    [im_blob.shape[1], im_blob.shape[2], im_scales[0]],
     dtype=np.float32)
 
   return blobs

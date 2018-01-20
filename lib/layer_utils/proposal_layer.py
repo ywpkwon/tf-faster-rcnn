@@ -6,13 +6,14 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+
 import numpy as np
 from model.config import cfg
 from model.bbox_transform import bbox_transform_inv, clip_boxes
 from model.nms_wrapper import nms
 
 
-def proposal_layer(rpn_cls_prob, rpn_bbox_pred, im_info, cfg_key, _feat_stride, anchors, anchor_scales):
+def proposal_layer(rpn_cls_prob, rpn_bbox_pred, im_info, cfg_key, _feat_stride, anchors, num_anchors):
   """A simplified version compared to fast/er RCNN
      For details please see the technical report
   """
@@ -22,9 +23,6 @@ def proposal_layer(rpn_cls_prob, rpn_bbox_pred, im_info, cfg_key, _feat_stride, 
   post_nms_topN = cfg[cfg_key].RPN_POST_NMS_TOP_N
   nms_thresh = cfg[cfg_key].RPN_NMS_THRESH
 
-  scales = np.array(anchor_scales)
-  num_anchors = scales.shape[0] * 3
-  im_info = im_info[0]
   # Get the scores and bounding boxes
   scores = rpn_cls_prob[:, :, :, num_anchors:]
   rpn_bbox_pred = rpn_bbox_pred.reshape((-1, 4))
