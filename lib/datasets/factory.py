@@ -13,10 +13,11 @@ from __future__ import print_function
 __sets = {}
 from datasets.pascal_voc import pascal_voc
 from datasets.coco import coco
+from datasets.kitti import kitti_voc
 
 import numpy as np
 
-# Set up voc_<year>_<split> 
+# Set up voc_<year>_<split>
 for year in ['2007', '2012']:
   for split in ['train', 'val', 'trainval', 'test']:
     name = 'voc_{}_{}'.format(year, split)
@@ -39,9 +40,16 @@ for year in ['2015']:
     name = 'coco_{}_{}'.format(year, split)
     __sets[name] = (lambda split=split, year=year: coco(split, year))
 
+# kitti
+for year in ['2012']:
+  for split in ['train', 'val', 'trainval']:
+    name = 'kitti_{}_{}'.format(year, split)
+    __sets[name] = (lambda split=split, year=year: kitti_voc(split, year, use_diff=True))
+
 
 def get_imdb(name):
   """Get an imdb (image database) by name."""
+  import pdb; pdb.set_trace()
   if name not in __sets:
     raise KeyError('Unknown dataset: {}'.format(name))
   return __sets[name]()
