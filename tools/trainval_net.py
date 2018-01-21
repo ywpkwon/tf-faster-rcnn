@@ -64,8 +64,8 @@ def combined_roidb(imdb_names):
   """
   Combine multiple roidbs
   """
-
   def get_roidb(imdb_name):
+    import pdb; pdb.set_trace()
     imdb = get_imdb(imdb_name)
     print('Loaded dataset `{:s}` for training'.format(imdb.name))
     imdb.set_proposal_method(cfg.TRAIN.PROPOSAL_METHOD)
@@ -133,7 +133,7 @@ if __name__ == '__main__':
     net = mobilenetv1()
   else:
     raise NotImplementedError
-    
+
   train_net(net, imdb, roidb, valroidb, output_dir, tb_dir,
             pretrained_model=args.weight,
             max_iters=args.max_iters)
