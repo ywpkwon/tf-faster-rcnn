@@ -40,12 +40,12 @@ case ${DATASET} in
     RATIOS="[0.5,1,2]"
     ;;
   kitti)
-    TRAIN_IMDB="kitti_train"
-    TEST_IMDB="kitti_val"
-    STEPSIZE="[350000]"
-    ITERS=490000
+    TRAIN_IMDB="kitti_2012_train"
+    TEST_IMDB="kitti_2012_val"
+    STEPSIZE="[80000]"
+    ITERS=100000
     ANCHORS="[4,8,16,32]"
-    RATIOS="[0.5,1,2]"
+    RATIOS="[0.5,1,2,4]"
     ;;
   *)
     echo "No dataset given"
