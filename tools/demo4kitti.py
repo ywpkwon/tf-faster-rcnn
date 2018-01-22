@@ -30,17 +30,24 @@ import argparse
 from nets.vgg16 import vgg16
 from nets.resnet_v1 import resnetv1
 
-CLASSES = ('__background__',
-           'aeroplane', 'bicycle', 'bird', 'boat',
-           'bottle', 'bus', 'car', 'cat', 'chair',
-           'cow', 'diningtable', 'dog', 'horse',
-           'motorbike', 'person', 'pottedplant',
-           'sheep', 'sofa', 'train', 'tvmonitor')
+# CLASSES = ('__background__',
+#            'aeroplane', 'bicycle', 'bird', 'boat',
+#            'bottle', 'bus', 'car', 'cat', 'chair',
+#            'cow', 'diningtable', 'dog', 'horse',
+#            'motorbike', 'person', 'pottedplant',
+#            'sheep', 'sofa', 'train', 'tvmonitor')
 
-NETS = {'vgg16': ('vgg16_faster_rcnn_iter_70000.ckpt',),
+CLASSES = ('__background__',  # always index 0
+           'car', 'van', 'truck',
+           'pedestrian', 'person_sitting', 'cyclist', 'tram',
+           'misc', 'dontcare')
+
+NETS = {'vgg16': ('vgg16_faster_rcnn_iter_160000.ckpt',),
         'res101': ('res101_faster_rcnn_iter_110000.ckpt',)}
+
 DATASETS = {'pascal_voc': ('voc_2007_trainval',),
-            'pascal_voc_0712': ('voc_2007_trainval+voc_2012_trainval',)}
+            'pascal_voc_0712': ('voc_2007_trainval+voc_2012_trainval',),
+            'kitti': ('kitti_2012_train_diff_',)}
 
 def vis_detections(im, class_name, dets, thresh=0.5):
     """Draw detected bounding boxes."""
@@ -121,15 +128,13 @@ if __name__ == '__main__':
     dataset = args.dataset
     tfmodel = os.path.join('output', demonet, DATASETS[dataset][0], 'default',
                               NETS[demonet][0])
-
-
     if not os.path.isfile(tfmodel + '.meta'):
         raise IOError(('{:s} not found.\nDid you download the proper networks from '
                        'our server and place them properly?').format(tfmodel + '.meta'))
 
     # set config
     tfconfig = tf.ConfigProto(allow_soft_placement=True)
-    tfconfig.gpu_options.allow_growth=True
+    tfconfig.gpu_options.allow_growth = True
 
     # init session
     sess = tf.Session(config=tfconfig)
@@ -140,15 +145,19 @@ if __name__ == '__main__':
         net = resnetv1(num_layers=101)
     else:
         raise NotImplementedError
-    net.create_architecture("TEST", 21,
-                          tag='default', anchor_scales=[8, 16, 32])
+    # import pdb; pdb.set_trace()
+    net.create_architecture("TEST", len(CLASSES), tag='default',
+                            anchor_scales=[4, 8, 16, 32],
+                            anchor_ratios=[0.5, 1, 2])
     saver = tf.train.Saver()
     saver.restore(sess, tfmodel)
 
     print('Loaded network {:s}'.format(tfmodel))
 
-    im_names = ['000456.jpg', '000542.jpg', '001150.jpg',
-                '001763.jpg', '004545.jpg']
+    # im_names = ['000456.jpg', '000542.jpg', '001150.jpg',
+                # '001763.jpg', '004545.jpg']
+    im_names = ['k000061.png', 'k000084.png', 'k000107.png',
+                'k000131.png', 'k000153.png']
     for im_name in im_names:
         print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
         print('Demo for data/demo/{}'.format(im_name))

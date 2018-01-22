@@ -24,23 +24,37 @@ from utils.timer import Timer
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import numpy as np
-import os, cv2
+import os
+import cv2
 import argparse
+from tqdm import tqdm
 
 from nets.vgg16 import vgg16
 from nets.resnet_v1 import resnetv1
 
-CLASSES = ('__background__',
-           'aeroplane', 'bicycle', 'bird', 'boat',
-           'bottle', 'bus', 'car', 'cat', 'chair',
-           'cow', 'diningtable', 'dog', 'horse',
-           'motorbike', 'person', 'pottedplant',
-           'sheep', 'sofa', 'train', 'tvmonitor')
+# CLASSES = ('__background__',
+#            'aeroplane', 'bicycle', 'bird', 'boat',
+#            'bottle', 'bus', 'car', 'cat', 'chair',
+#            'cow', 'diningtable', 'dog', 'horse',
+#            'motorbike', 'person', 'pottedplant',
+#            'sheep', 'sofa', 'train', 'tvmonitor')
 
-NETS = {'vgg16': ('vgg16_faster_rcnn_iter_70000.ckpt',),
+outdir = 'submit'
+valf = 'data/VOCKITTI/VOCKITTI/ImageSets/Main/val.txt'
+imgf = 'data/VOCKITTI/VOCKITTI/JPEGImages/{}.png'
+
+CLASSES = ('__background__',  # always index 0
+           'Car', 'Van', 'Truck',
+           'Pedestrian', 'Person_sitting', 'Cyclist', 'Tram',
+           'Misc', 'DontCare')
+
+NETS = {'vgg16': ('vgg16_faster_rcnn_iter_160000.ckpt',),
         'res101': ('res101_faster_rcnn_iter_110000.ckpt',)}
+
 DATASETS = {'pascal_voc': ('voc_2007_trainval',),
-            'pascal_voc_0712': ('voc_2007_trainval+voc_2012_trainval',)}
+            'pascal_voc_0712': ('voc_2007_trainval+voc_2012_trainval',),
+            'kitti': ('kitti_2012_train_diff_',)}
+
 
 def vis_detections(im, class_name, dets, thresh=0.5):
     """Draw detected bounding boxes."""
@@ -74,11 +88,12 @@ def vis_detections(im, class_name, dets, thresh=0.5):
     plt.tight_layout()
     plt.draw()
 
+
 def demo(sess, net, image_name):
     """Detect object classes in an image using pre-computed object proposals."""
 
     # Load the demo image
-    im_file = os.path.join(cfg.DATA_DIR, 'demo', image_name)
+    im_file = imgf.format(image_name)
     im = cv2.imread(im_file)
 
     # Detect all object classes and regress object bounds
@@ -86,20 +101,30 @@ def demo(sess, net, image_name):
     timer.tic()
     scores, boxes = im_detect(sess, net, im)
     timer.toc()
-    print('Detection took {:.3f}s for {:d} object proposals'.format(timer.total_time, boxes.shape[0]))
+    # print('Detection took {:.3f}s for {:d} object proposals'.format(timer.total_time, boxes.shape[0]))
 
     # Visualize detections for each class
-    CONF_THRESH = 0.8
+    CONF_THRESH = 0.6
     NMS_THRESH = 0.3
-    for cls_ind, cls in enumerate(CLASSES[1:]):
-        cls_ind += 1 # because we skipped background
-        cls_boxes = boxes[:, 4*cls_ind:4*(cls_ind + 1)]
-        cls_scores = scores[:, cls_ind]
-        dets = np.hstack((cls_boxes,
-                          cls_scores[:, np.newaxis])).astype(np.float32)
-        keep = nms(dets, NMS_THRESH)
-        dets = dets[keep, :]
-        vis_detections(im, cls, dets, thresh=CONF_THRESH)
+    template = '{} {} {} {} {} {} {:.4f}\n'
+    with open(os.path.join(outdir, image_name + '.txt'), 'w') as fp:
+        for cls_ind, cls in enumerate(CLASSES[1:]):
+            cls_ind += 1 # because we skipped background
+            cls_boxes = boxes[:, 4*cls_ind:4*(cls_ind + 1)]
+            cls_scores = scores[:, cls_ind]
+            dets = np.hstack((cls_boxes,
+                              cls_scores[:, np.newaxis])).astype(np.float32)
+            keep = nms(dets, NMS_THRESH)
+            dets = dets[keep, :]
+
+            inds = np.where(dets[:, -1] >= CONF_THRESH)[0]
+            final_bboxes = dets[inds, :4]
+            final_scores = dets[inds, -1]
+
+            for b, s in zip(final_bboxes, final_scores):
+                bbox_str = ' '.join(['{:.4f}'.format(f) for f in b])
+                bbox_3d_str = ' '.join(['0.000'] * 7)       # dummy
+                fp.write(template.format(cls, 0, 0, -10, bbox_str, bbox_3d_str, s))
 
 def parse_args():
     """Parse input arguments."""
@@ -121,15 +146,13 @@ if __name__ == '__main__':
     dataset = args.dataset
     tfmodel = os.path.join('output', demonet, DATASETS[dataset][0], 'default',
                               NETS[demonet][0])
-
-
     if not os.path.isfile(tfmodel + '.meta'):
         raise IOError(('{:s} not found.\nDid you download the proper networks from '
                        'our server and place them properly?').format(tfmodel + '.meta'))
 
     # set config
     tfconfig = tf.ConfigProto(allow_soft_placement=True)
-    tfconfig.gpu_options.allow_growth=True
+    tfconfig.gpu_options.allow_growth = True
 
     # init session
     sess = tf.Session(config=tfconfig)
@@ -140,18 +163,18 @@ if __name__ == '__main__':
         net = resnetv1(num_layers=101)
     else:
         raise NotImplementedError
-    net.create_architecture("TEST", 21,
-                          tag='default', anchor_scales=[8, 16, 32])
+
+    net.create_architecture("TEST", len(CLASSES), tag='default',
+                            anchor_scales=[4, 8, 16, 32],
+                            anchor_ratios=[0.5, 1, 2])
     saver = tf.train.Saver()
     saver.restore(sess, tfmodel)
 
     print('Loaded network {:s}'.format(tfmodel))
 
-    im_names = ['000456.jpg', '000542.jpg', '001150.jpg',
-                '001763.jpg', '004545.jpg']
-    for im_name in im_names:
-        print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
-        print('Demo for data/demo/{}'.format(im_name))
-        demo(sess, net, im_name)
+    with open(valf, 'r') as fp:
+        lines = fp.readlines()
+        names = [line.strip() for line in lines]
 
-    plt.show()
+    for name in tqdm(names):
+        demo(sess, net, name)
