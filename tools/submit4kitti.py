@@ -39,10 +39,6 @@ from nets.resnet_v1 import resnetv1
 #            'motorbike', 'person', 'pottedplant',
 #            'sheep', 'sofa', 'train', 'tvmonitor')
 
-outdir = 'submit'
-valf = 'data/VOCKITTI/VOCKITTI/ImageSets/Main/val.txt'
-imgf = 'data/VOCKITTI/VOCKITTI/JPEGImages/{}.png'
-
 CLASSES = ('__background__',  # always index 0
            'Car', 'Van', 'Truck',
            'Pedestrian', 'Person_sitting', 'Cyclist', 'Tram',
@@ -89,12 +85,8 @@ def vis_detections(im, class_name, dets, thresh=0.5):
     plt.draw()
 
 
-def demo(sess, net, image_name):
+def demo(sess, net, im):
     """Detect object classes in an image using pre-computed object proposals."""
-
-    # Load the demo image
-    im_file = imgf.format(image_name)
-    im = cv2.imread(im_file)
 
     # Detect all object classes and regress object bounds
     timer = Timer()
@@ -107,32 +99,34 @@ def demo(sess, net, image_name):
     CONF_THRESH = 0.6
     NMS_THRESH = 0.3
     template = '{} {} {} {} {} {} {:.4f}\n'
-    with open(os.path.join(outdir, image_name + '.txt'), 'w') as fp:
-        for cls_ind, cls in enumerate(CLASSES[1:]):
-            cls_ind += 1 # because we skipped background
-            cls_boxes = boxes[:, 4*cls_ind:4*(cls_ind + 1)]
-            cls_scores = scores[:, cls_ind]
-            dets = np.hstack((cls_boxes,
-                              cls_scores[:, np.newaxis])).astype(np.float32)
-            keep = nms(dets, NMS_THRESH)
-            dets = dets[keep, :]
+    lines = []
+    for cls_ind, cls in enumerate(CLASSES[1:]):
+        cls_ind += 1 # because we skipped background
+        cls_boxes = boxes[:, 4*cls_ind:4*(cls_ind + 1)]
+        cls_scores = scores[:, cls_ind]
+        dets = np.hstack((cls_boxes,
+                          cls_scores[:, np.newaxis])).astype(np.float32)
+        keep = nms(dets, NMS_THRESH)
+        dets = dets[keep, :]
 
-            inds = np.where(dets[:, -1] >= CONF_THRESH)[0]
-            final_bboxes = dets[inds, :4]
-            final_scores = dets[inds, -1]
+        inds = np.where(dets[:, -1] >= CONF_THRESH)[0]
+        final_bboxes = dets[inds, :4]
+        final_scores = dets[inds, -1]
 
-            for b, s in zip(final_bboxes, final_scores):
-                bbox_str = ' '.join(['{:.4f}'.format(f) for f in b])
-                bbox_3d_str = ' '.join(['0.000'] * 7)       # dummy
-                fp.write(template.format(cls, 0, 0, -10, bbox_str, bbox_3d_str, s))
+        for b, s in zip(final_bboxes, final_scores):
+            bbox_str = ' '.join(['{:.4f}'.format(f) for f in b])
+            bbox_3d_str = ' '.join(['0.000'] * 7)       # dummy
+            lines.append(template.format(cls, 0, 0, -10, bbox_str, bbox_3d_str, s))
+    return ''.join(lines)
 
 def parse_args():
     """Parse input arguments."""
     parser = argparse.ArgumentParser(description='Tensorflow Faster R-CNN demo')
     parser.add_argument('--net', dest='demo_net', help='Network to use [vgg16 res101]',
-                        choices=NETS.keys(), default='res101')
-    parser.add_argument('--dataset', dest='dataset', help='Trained dataset [pascal_voc pascal_voc_0712]',
-                        choices=DATASETS.keys(), default='pascal_voc_0712')
+                        choices=NETS.keys(), default='vgg16')
+    parser.add_argument('--dataset', dest='dataset', choices='DATASETS.keys()', default='kitti')
+    parser.add_argument("--kitti_dir", default="/mnt/data/data/kitti/", action="store", help="")
+    parser.add_argument("--outdir", default="submit", action="store", help="a directory name to output submission")
     args = parser.parse_args()
 
     return args
@@ -156,6 +150,7 @@ if __name__ == '__main__':
 
     # init session
     sess = tf.Session(config=tfconfig)
+
     # load network
     if demonet == 'vgg16':
         net = vgg16()
@@ -167,14 +162,37 @@ if __name__ == '__main__':
     net.create_architecture("TEST", len(CLASSES), tag='default',
                             anchor_scales=[4, 8, 16, 32],
                             anchor_ratios=[0.5, 1, 2])
+
     saver = tf.train.Saver()
     saver.restore(sess, tfmodel)
-
     print('Loaded network {:s}'.format(tfmodel))
 
-    with open(valf, 'r') as fp:
-        lines = fp.readlines()
-        names = [line.strip() for line in lines]
+    if not os.path.isdir(args.outdir):   os.mkdir(args.outdir)
 
-    for name in tqdm(names):
-        demo(sess, net, name)
+    for split in ['train', 'val', 'test']:
+
+        # --- set image directory
+        targetf = os.path.join(args.kitti_dir, 'ImageSets', '{}.txt'.format(split))
+        if split == 'test':  img_dir = os.path.join(args.kitti_dir, 'testing')
+        else:                img_dir = os.path.join(args.kitti_dir, 'training')
+        imgf = os.path.join(args.kitti_dir, img_dir, 'image_2', '{}.png')
+
+        # --- read split
+        with open(targetf, 'r') as fp:
+            lines = fp.readlines()
+            names = [line.strip() for line in lines]
+
+        # --- set output directory
+        outdir = os.path.join(args.outdir, split)
+        if not os.path.isdir(outdir):
+            os.mkdir(outdir)
+        else:
+            raise IOError(('The directory "{:s}" already exists').format(outdir))
+
+        # --- do the job
+        for name in tqdm(names):
+            with open(os.path.join(outdir, name + '.txt'), 'w') as fp:
+                im_file = imgf.format(name)
+                im = cv2.imread(im_file)
+                lines = demo(sess, net, im)
+                fp.write(lines)
