@@ -49,7 +49,6 @@ for year in ['2012']:
 
 def get_imdb(name):
   """Get an imdb (image database) by name."""
-  import pdb; pdb.set_trace()
   if name not in __sets:
     raise KeyError('Unknown dataset: {}'.format(name))
   return __sets[name]()

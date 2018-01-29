@@ -65,7 +65,6 @@ def combined_roidb(imdb_names):
   Combine multiple roidbs
   """
   def get_roidb(imdb_name):
-    import pdb; pdb.set_trace()
     imdb = get_imdb(imdb_name)
     print('Loaded dataset `{:s}` for training'.format(imdb.name))
     imdb.set_proposal_method(cfg.TRAIN.PROPOSAL_METHOD)
@@ -96,6 +95,7 @@ if __name__ == '__main__':
   if args.set_cfgs is not None:
     cfg_from_list(args.set_cfgs)
 
+  import pdb; pdb.set_trace()
   print('Using config:')
   pprint.pprint(cfg)
 
